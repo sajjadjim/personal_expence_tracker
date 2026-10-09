@@ -1,27 +1,11 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
 import { Modal } from '@/components/ui/Modal';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { Category, Transaction, PAYMENT_METHODS, TransactionType } from '@/types/database';
-import { CategoryIcon } from '@/components/ui/CategoryIcon';
 import { Loader2 } from 'lucide-react';
-
-const transactionSchema = z.object({
-  title: z.string().min(1, 'Title is required').max(100, 'Title is too long'),
-  amount: z.coerce.number().positive('Amount must be greater than 0'),
-  type: z.enum(['income', 'expense']),
-  category_id: z.string().nullable().optional(),
-  date: z.string().min(1, 'Date is required'),
-  payment_method: z.string().min(1, 'Payment method is required'),
-  notes: z.string().max(500, 'Notes are too long').optional().nullable(),
-});
-
-type TransactionFormData = z.infer<typeof transactionSchema>;
 
 interface TransactionFormModalProps {
   isOpen: boolean;
@@ -44,28 +28,14 @@ export function TransactionFormModal({
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const {
-    register,
-    handleSubmit,
-    watch,
-    setValue,
-    reset,
-    formState: { errors },
-  } = useForm<TransactionFormData>({
-    // @ts-expect-error zodResolver type compatibility
-    resolver: zodResolver(transactionSchema),
-    defaultValues: {
-      type: defaultType,
-      title: '',
-      amount: undefined,
-      category_id: '',
-      date: new Date().toISOString().split('T')[0],
-      payment_method: 'Cash',
-      notes: '',
-    },
-  });
-
-  const selectedType = watch('type');
+  // Form Fields
+  const [type, setType] = useState<TransactionType>(defaultType);
+  const [title, setTitle] = useState('');
+  const [amount, setAmount] = useState('');
+  const [categoryId, setCategoryId] = useState('');
+  const [date, setDate] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('Cash');
+  const [notes, setNotes] = useState('');
 
   // Load user categories
   useEffect(() => {
@@ -92,34 +62,47 @@ export function TransactionFormModal({
   // Reset form values when editing or opening
   useEffect(() => {
     if (transactionToEdit) {
-      reset({
-        type: transactionToEdit.type,
-        title: transactionToEdit.title,
-        amount: Number(transactionToEdit.amount),
-        category_id: transactionToEdit.category_id || '',
-        date: transactionToEdit.date,
-        payment_method: transactionToEdit.payment_method,
-        notes: transactionToEdit.notes || '',
-      });
+      setType(transactionToEdit.type);
+      setTitle(transactionToEdit.title);
+      setAmount(String(transactionToEdit.amount));
+      setCategoryId(transactionToEdit.category_id || '');
+      setDate(transactionToEdit.date);
+      setPaymentMethod(transactionToEdit.payment_method);
+      setNotes(transactionToEdit.notes || '');
     } else {
-      reset({
-        type: defaultType,
-        title: '',
-        amount: undefined,
-        category_id: '',
-        date: new Date().toISOString().split('T')[0],
-        payment_method: 'Cash',
-        notes: '',
-      });
+      setType(defaultType);
+      setTitle('');
+      setAmount('');
+      setCategoryId('');
+      setDate(new Date().toISOString().split('T')[0]);
+      setPaymentMethod('Cash');
+      setNotes('');
     }
     setErrorMessage(null);
-  }, [transactionToEdit, defaultType, isOpen, reset]);
+  }, [transactionToEdit, defaultType, isOpen]);
 
-  const filteredCategories = categories.filter((c) => c.type === selectedType);
+  const filteredCategories = categories.filter((c) => c.type === type);
 
-  const onSubmit = async (data: TransactionFormData) => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!user) {
       setErrorMessage('You must be logged in to record a transaction.');
+      return;
+    }
+
+    if (!title.trim()) {
+      setErrorMessage('Please enter a description/title.');
+      return;
+    }
+
+    const numAmount = parseFloat(amount);
+    if (isNaN(numAmount) || numAmount <= 0) {
+      setErrorMessage('Please enter a valid positive amount.');
+      return;
+    }
+
+    if (!date) {
+      setErrorMessage('Please choose a date.');
       return;
     }
 
@@ -131,13 +114,13 @@ export function TransactionFormModal({
 
       const payload = {
         user_id: user.id,
-        title: data.title.trim(),
-        amount: Number(data.amount),
-        type: data.type,
-        category_id: data.category_id ? data.category_id : null,
-        date: data.date,
-        payment_method: data.payment_method,
-        notes: data.notes?.trim() || null,
+        title: title.trim(),
+        amount: numAmount,
+        type,
+        category_id: categoryId ? categoryId : null,
+        date,
+        payment_method: paymentMethod,
+        notes: notes.trim() || null,
       };
 
       if (transactionToEdit) {
@@ -170,9 +153,9 @@ export function TransactionFormModal({
       title={transactionToEdit ? 'Edit Transaction' : 'Record New Transaction'}
       description="Track your income and expenses to keep your finances organized."
     >
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4">
         {errorMessage && (
-          <div className="rounded-lg bg-rose-50 p-3 text-xs text-rose-700 border border-rose-200">
+          <div className="rounded-xl bg-rose-50 p-3 text-xs text-rose-700 border border-rose-200">
             {errorMessage}
           </div>
         )}
@@ -182,11 +165,11 @@ export function TransactionFormModal({
           <button
             type="button"
             onClick={() => {
-              setValue('type', 'expense');
-              setValue('category_id', '');
+              setType('expense');
+              setCategoryId('');
             }}
             className={`flex-1 rounded-lg py-2 text-xs font-semibold transition-all ${
-              selectedType === 'expense'
+              type === 'expense'
                 ? 'bg-white text-rose-600 shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
@@ -196,11 +179,11 @@ export function TransactionFormModal({
           <button
             type="button"
             onClick={() => {
-              setValue('type', 'income');
-              setValue('category_id', '');
+              setType('income');
+              setCategoryId('');
             }}
             className={`flex-1 rounded-lg py-2 text-xs font-semibold transition-all ${
-              selectedType === 'income'
+              type === 'income'
                 ? 'bg-white text-emerald-600 shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
@@ -216,13 +199,16 @@ export function TransactionFormModal({
           </label>
           <input
             type="text"
-            placeholder={selectedType === 'expense' ? 'e.g. Grocery shopping, Electricity bill' : 'e.g. Monthly salary, Freelance client'}
-            {...register('title')}
+            required
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder={
+              type === 'expense'
+                ? 'e.g. Grocery shopping, Electricity bill'
+                : 'e.g. Monthly salary, Freelance client'
+            }
             className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:border-indigo-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-100 transition-all"
           />
-          {errors.title && (
-            <p className="mt-1 text-xs text-rose-500">{errors.title.message}</p>
-          )}
         </div>
 
         {/* Amount & Date Grid */}
@@ -239,14 +225,13 @@ export function TransactionFormModal({
                 type="number"
                 step="0.01"
                 min="0.01"
+                required
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
                 placeholder="0.00"
-                {...register('amount')}
                 className="w-full rounded-xl border border-slate-200 pl-8 pr-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:border-indigo-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-100 transition-all"
               />
             </div>
-            {errors.amount && (
-              <p className="mt-1 text-xs text-rose-500">{errors.amount.message}</p>
-            )}
           </div>
 
           <div>
@@ -255,12 +240,11 @@ export function TransactionFormModal({
             </label>
             <input
               type="date"
-              {...register('date')}
+              required
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
               className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-indigo-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-100 transition-all"
             />
-            {errors.date && (
-              <p className="mt-1 text-xs text-rose-500">{errors.date.message}</p>
-            )}
           </div>
         </div>
 
@@ -271,7 +255,8 @@ export function TransactionFormModal({
               Category
             </label>
             <select
-              {...register('category_id')}
+              value={categoryId}
+              onChange={(e) => setCategoryId(e.target.value)}
               disabled={loadingCategories}
               className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-indigo-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-100 transition-all bg-white"
             >
@@ -289,7 +274,8 @@ export function TransactionFormModal({
               Payment Method *
             </label>
             <select
-              {...register('payment_method')}
+              value={paymentMethod}
+              onChange={(e) => setPaymentMethod(e.target.value)}
               className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-indigo-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-100 transition-all bg-white"
             >
               {PAYMENT_METHODS.map((pm) => (
@@ -308,8 +294,9 @@ export function TransactionFormModal({
           </label>
           <textarea
             rows={2}
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
             placeholder="Add any additional details or tags..."
-            {...register('notes')}
             className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:border-indigo-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-100 transition-all resize-none"
           />
         </div>
@@ -328,13 +315,17 @@ export function TransactionFormModal({
             type="submit"
             disabled={submitting}
             className={`inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2 text-sm font-semibold text-white transition-all shadow-xs ${
-              selectedType === 'expense'
+              type === 'expense'
                 ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-600/20'
                 : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'
             }`}
           >
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-            {transactionToEdit ? 'Save Changes' : selectedType === 'expense' ? 'Add Expense' : 'Add Income'}
+            {transactionToEdit
+              ? 'Save Changes'
+              : type === 'expense'
+              ? 'Add Expense'
+              : 'Add Income'}
           </button>
         </div>
       </form>

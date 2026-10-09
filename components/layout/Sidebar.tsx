@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
   Receipt,
@@ -32,11 +32,13 @@ interface SidebarProps {
 
 export function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const { user, profile, signOut } = useAuth();
 
   const handleSignOut = async () => {
     await signOut();
-    window.location.href = '/login';
+    router.push('/login');
+    router.refresh();
   };
 
   const navContent = (

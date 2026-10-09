@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Menu, Plus, Bell } from 'lucide-react';
+import { Menu, Plus } from 'lucide-react';
 import { useAuth } from '@/components/providers/AuthProvider';
 
 interface HeaderProps {

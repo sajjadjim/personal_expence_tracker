@@ -1,9 +1,16 @@
 import React from 'react';
 
-export function Skeleton({ className = '' }: { className?: string }) {
+export function Skeleton({
+  className = '',
+  style,
+}: {
+  className?: string;
+  style?: React.CSSProperties;
+}) {
   return (
     <div
       className={`animate-pulse rounded-md bg-slate-200/80 ${className}`}
+      style={style}
       aria-hidden="true"
     />
   );

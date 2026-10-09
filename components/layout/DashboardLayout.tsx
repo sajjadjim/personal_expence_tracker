@@ -5,9 +5,7 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
 import { TransactionFormModal } from '@/components/transactions/TransactionFormModal';
 import { useAuth } from '@/components/providers/AuthProvider';
-import { Alert } from '@/components/ui/Alert';
-import { Database, Key, Sparkles, ExternalLink } from 'lucide-react';
-import Link from 'next/link';
+import { Database, ExternalLink } from 'lucide-react';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
