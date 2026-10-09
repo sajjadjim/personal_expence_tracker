@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+import { changePassword } from '@/lib/firebase/auth';
 import { Wallet, Loader2, CheckCircle2 } from 'lucide-react';
 import { Alert } from '@/components/ui/Alert';
 
@@ -32,15 +32,7 @@ export default function ResetPasswordPage() {
     setLoading(true);
 
     try {
-      const supabase = createClient();
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword,
-      });
-
-      if (error) {
-        throw error;
-      }
-
+      await changePassword(newPassword);
       setSuccess(true);
       setTimeout(() => {
         router.push('/dashboard');

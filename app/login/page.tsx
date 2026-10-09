@@ -3,7 +3,7 @@
 import React, { useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+import { signInWithEmail } from '@/lib/firebase/auth';
 import { Wallet, Loader2, ArrowRight } from 'lucide-react';
 import { Alert } from '@/components/ui/Alert';
 
@@ -24,22 +24,20 @@ function LoginFormContent() {
     setErrorMessage(null);
 
     try {
-      const supabase = createClient();
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
-      });
-
-      if (error) {
-        throw error;
-      }
-
-      if (data?.user) {
-        router.push(redirectUrl);
-        router.refresh();
-      }
+      await signInWithEmail(email.trim(), password);
+      router.push(redirectUrl);
+      router.refresh();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Invalid login credentials';
+      let message = 'Invalid login credentials';
+      if (err instanceof Error) {
+        if (err.message.includes('user-not-found') || err.message.includes('wrong-password') || err.message.includes('invalid-credential')) {
+          message = 'Incorrect email or password. Please try again.';
+        } else if (err.message.includes('too-many-requests')) {
+          message = 'Access temporarily blocked due to many failed attempts. Try again later.';
+        } else {
+          message = err.message;
+        }
+      }
       setErrorMessage(message);
     } finally {
       setLoading(false);
@@ -56,7 +54,7 @@ function LoginFormContent() {
           Sign in to ExpenseTrack
         </h2>
         <p className="mt-1 text-sm text-slate-500">
-          Manage your personal finances, track expenses, and grow your savings.
+          Powered by Firebase Authentication & MongoDB Atlas.
         </p>
       </div>
 

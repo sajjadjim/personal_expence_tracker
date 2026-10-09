@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState } from 'react';
 import { Modal } from '@/components/ui/Modal';
-import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { Category, TransactionType } from '@/types/database';
 import { AVAILABLE_ICONS, AVAILABLE_COLORS, ICON_MAP, CategoryIcon } from '@/components/ui/CategoryIcon';
@@ -58,25 +57,24 @@ export function CategoryModal({
     setErrorMessage(null);
 
     try {
-      const supabase = createClient();
       const payload = {
-        user_id: user.id,
+        userId: user.uid,
         name: name.trim(),
         type,
         icon: selectedIcon,
         color: selectedColor,
+        ...(categoryToEdit ? { categoryId: categoryToEdit.id } : {}),
       };
 
-      if (categoryToEdit) {
-        const { error } = await supabase
-          .from('categories')
-          .update(payload)
-          .eq('id', categoryToEdit.id)
-          .eq('user_id', user.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from('categories').insert(payload);
-        if (error) throw error;
+      const res = await fetch('/api/categories', {
+        method: categoryToEdit ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to save category');
       }
 
       onSuccess();

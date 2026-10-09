@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/client';
+import { resetPassword } from '@/lib/firebase/auth';
 import { Wallet, Loader2, ArrowLeft, MailCheck } from 'lucide-react';
 import { Alert } from '@/components/ui/Alert';
 
@@ -18,18 +18,17 @@ export default function ForgotPasswordPage() {
     setErrorMessage(null);
 
     try {
-      const supabase = createClient();
-      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: `${window.location.origin}/reset-password`,
-      });
-
-      if (error) {
-        throw error;
-      }
-
+      await resetPassword(email.trim());
       setSuccess(true);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to send reset link';
+      let message = 'Failed to send reset link';
+      if (err instanceof Error) {
+        if (err.message.includes('user-not-found')) {
+          message = 'No account found with this email address.';
+        } else {
+          message = err.message;
+        }
+      }
       setErrorMessage(message);
     } finally {
       setLoading(false);
@@ -46,7 +45,7 @@ export default function ForgotPasswordPage() {
           Reset Password
         </h2>
         <p className="mt-1 text-sm text-slate-500">
-          Enter your registered email and we&apos;ll send you instructions to reset your password.
+          Enter your registered email and we&apos;ll send you instructions to reset your password via Firebase.
         </p>
       </div>
 

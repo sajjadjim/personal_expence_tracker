@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState } from 'react';
 import { Modal } from '@/components/ui/Modal';
-import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { Category, Transaction, PAYMENT_METHODS, TransactionType } from '@/types/database';
 import { Loader2 } from 'lucide-react';
@@ -37,23 +36,23 @@ export function TransactionFormModal({
   const [paymentMethod, setPaymentMethod] = useState('Cash');
   const [notes, setNotes] = useState('');
 
-  // Load user categories
+  // Load user categories from MongoDB API
   useEffect(() => {
     if (!user || !isOpen) return;
 
     async function loadCategories() {
       setLoadingCategories(true);
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from('categories')
-        .select('*')
-        .eq('user_id', user!.id)
-        .order('name');
-
-      if (!error && data) {
-        setCategories(data);
+      try {
+        const res = await fetch(`/api/categories?userId=${user!.uid}`);
+        if (res.ok) {
+          const data = await res.json();
+          setCategories(data.categories || []);
+        }
+      } catch (err) {
+        console.error('Failed to load categories:', err);
+      } finally {
+        setLoadingCategories(false);
       }
-      setLoadingCategories(false);
     }
 
     loadCategories();
@@ -110,30 +109,27 @@ export function TransactionFormModal({
     setErrorMessage(null);
 
     try {
-      const supabase = createClient();
-
       const payload = {
-        user_id: user.id,
+        userId: user.uid,
         title: title.trim(),
         amount: numAmount,
         type,
-        category_id: categoryId ? categoryId : null,
+        categoryId: categoryId ? categoryId : null,
         date,
-        payment_method: paymentMethod,
+        paymentMethod,
         notes: notes.trim() || null,
+        ...(transactionToEdit ? { transactionId: transactionToEdit.id } : {}),
       };
 
-      if (transactionToEdit) {
-        const { error } = await supabase
-          .from('transactions')
-          .update(payload)
-          .eq('id', transactionToEdit.id)
-          .eq('user_id', user.id);
+      const res = await fetch('/api/transactions', {
+        method: transactionToEdit ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
 
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from('transactions').insert(payload);
-        if (error) throw error;
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to save transaction');
       }
 
       onSuccess();

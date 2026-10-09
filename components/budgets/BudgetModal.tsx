@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState } from 'react';
 import { Modal } from '@/components/ui/Modal';
-import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { Category, Budget } from '@/types/database';
 import { Loader2 } from 'lucide-react';
@@ -32,7 +31,6 @@ export function BudgetModal({
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Filter only expense categories for budgets
   const expenseCategories = categories.filter((c) => c.type === 'expense');
 
   useEffect(() => {
@@ -66,26 +64,22 @@ export function BudgetModal({
     setErrorMessage(null);
 
     try {
-      const supabase = createClient();
       const payload = {
-        user_id: user.id,
-        category_id: categoryId,
+        userId: user.uid,
+        categoryId,
         month,
         amount: numAmount,
       };
 
-      if (budgetToEdit) {
-        const { error } = await supabase
-          .from('budgets')
-          .update(payload)
-          .eq('id', budgetToEdit.id)
-          .eq('user_id', user.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from('budgets')
-          .upsert(payload, { onConflict: 'user_id, category_id, month' });
-        if (error) throw error;
+      const res = await fetch('/api/budgets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to save budget limit');
       }
 
       onSuccess();
