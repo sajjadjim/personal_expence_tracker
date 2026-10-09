@@ -4,7 +4,6 @@ import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { CategoryIcon } from '@/components/ui/CategoryIcon';
 import { useAuth } from '@/components/providers/AuthProvider';
-import { createClient } from '@/lib/supabase/client';
 import { Transaction } from '@/types/database';
 import { formatCurrency, downloadCSV } from '@/lib/utils';
 import {
@@ -28,7 +27,7 @@ import {
 type ReportPeriod = 'this_year' | 'last_year' | 'last_12_months' | 'this_month';
 
 export default function ReportsPage() {
-  const { user, profile, isConfigured } = useAuth();
+  const { user, profile } = useAuth();
   const [period, setPeriod] = useState<ReportPeriod>('this_year');
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [_loading, setLoading] = useState(true);
@@ -67,35 +66,29 @@ export default function ReportsPage() {
   };
 
   const fetchReportData = useCallback(async () => {
-    if (!user || !isConfigured) {
+    if (!user) {
       setLoading(false);
       return;
     }
 
     setLoading(true);
     try {
-      const supabase = createClient();
       const { start, end } = getDateRange(period);
+      const params = new URLSearchParams({ userId: user.uid });
+      if (start) params.append('startDate', start);
+      if (end) params.append('endDate', end);
 
-      const { data, error } = await supabase
-        .from('transactions')
-        .select(`
-          *,
-          category:categories(*)
-        `)
-        .eq('user_id', user.id)
-        .gte('date', start)
-        .lte('date', end)
-        .order('date', { ascending: true });
+      const res = await fetch(`/api/transactions?${params.toString()}`);
+      if (!res.ok) throw new Error('Failed to load transactions');
 
-      if (error) throw error;
-      setTransactions((data as unknown as Transaction[]) || []);
+      const data = await res.json();
+      setTransactions(data.transactions || []);
     } catch (err) {
       console.error('Error fetching report data:', err);
     } finally {
       setLoading(false);
     }
-  }, [user, isConfigured, period]);
+  }, [user, period]);
 
   useEffect(() => {
     fetchReportData();
@@ -229,7 +222,7 @@ export default function ReportsPage() {
   return (
     <DashboardLayout
       title="Financial Analytics & Reports"
-      subtitle="Detailed income, spending breakdown, savings trends, and CSV data export"
+      subtitle="Detailed income, spending breakdown, savings trends, and CSV data export from MongoDB"
       onRefreshData={fetchReportData}
     >
       <div className="space-y-6">

@@ -6,12 +6,11 @@ import { CategoryModal } from '@/components/categories/CategoryModal';
 import { Modal } from '@/components/ui/Modal';
 import { CategoryIcon } from '@/components/ui/CategoryIcon';
 import { useAuth } from '@/components/providers/AuthProvider';
-import { createClient } from '@/lib/supabase/client';
 import { Category, TransactionType } from '@/types/database';
 import { Plus, Edit2, Trash2, Sparkles, AlertTriangle, Loader2, Tags } from 'lucide-react';
 
 export default function CategoriesPage() {
-  const { user, isConfigured } = useAuth();
+  const { user } = useAuth();
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TransactionType>('expense');
@@ -25,27 +24,22 @@ export default function CategoriesPage() {
   const [seeding, setSeeding] = useState(false);
 
   const fetchCategories = useCallback(async () => {
-    if (!user || !isConfigured) {
+    if (!user) {
       setLoading(false);
       return;
     }
     setLoading(true);
     try {
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from('categories')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('name');
-
-      if (error) throw error;
-      setCategories(data || []);
+      const res = await fetch(`/api/categories?userId=${user.uid}`);
+      if (!res.ok) throw new Error('Failed to load categories');
+      const data = await res.json();
+      setCategories(data.categories || []);
     } catch (err) {
       console.error('Error fetching categories:', err);
     } finally {
       setLoading(false);
     }
-  }, [user, isConfigured]);
+  }, [user]);
 
   useEffect(() => {
     fetchCategories();
@@ -55,8 +49,12 @@ export default function CategoriesPage() {
     if (!user) return;
     setSeeding(true);
     try {
-      const supabase = createClient();
-      await supabase.rpc('seed_default_categories_for_user', { target_user_id: user.id });
+      const res = await fetch('/api/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.uid, action: 'seed' }),
+      });
+      if (!res.ok) throw new Error('Failed to seed categories');
       await fetchCategories();
     } catch (err) {
       console.error('Failed to seed categories:', err);
@@ -69,14 +67,11 @@ export default function CategoriesPage() {
     if (!categoryToDelete || !user) return;
     setDeleting(true);
     try {
-      const supabase = createClient();
-      const { error } = await supabase
-        .from('categories')
-        .delete()
-        .eq('id', categoryToDelete.id)
-        .eq('user_id', user.id);
-
-      if (error) throw error;
+      const res = await fetch(
+        `/api/categories?userId=${user.uid}&categoryId=${categoryToDelete.id}`,
+        { method: 'DELETE' }
+      );
+      if (!res.ok) throw new Error('Failed to delete category');
       setDeleteModalOpen(false);
       setCategoryToDelete(null);
       await fetchCategories();
@@ -92,7 +87,7 @@ export default function CategoriesPage() {
   return (
     <DashboardLayout
       title="Category Management"
-      subtitle="Organize your financial flow with custom categories and colors"
+      subtitle="Organize your financial flow with custom categories and colors in MongoDB"
       onRefreshData={fetchCategories}
     >
       <div className="space-y-6">

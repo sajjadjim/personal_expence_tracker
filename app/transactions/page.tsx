@@ -7,7 +7,6 @@ import { Modal } from '@/components/ui/Modal';
 import { CategoryIcon } from '@/components/ui/CategoryIcon';
 import { TableRowSkeleton } from '@/components/ui/Skeleton';
 import { useAuth } from '@/components/providers/AuthProvider';
-import { createClient } from '@/lib/supabase/client';
 import { Transaction, Category } from '@/types/database';
 import { formatCurrency, formatDate, downloadCSV } from '@/lib/utils';
 import {
@@ -27,7 +26,7 @@ import {
 const PAGE_SIZE = 10;
 
 export default function TransactionsPage() {
-  const { user, profile, isConfigured } = useAuth();
+  const { user, profile } = useAuth();
 
   // State
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -51,47 +50,40 @@ export default function TransactionsPage() {
 
   // Load categories
   useEffect(() => {
-    if (!user || !isConfigured) return;
+    if (!user) return;
     async function fetchCategories() {
-      const supabase = createClient();
-      const { data } = await supabase
-        .from('categories')
-        .select('*')
-        .eq('user_id', user!.id)
-        .order('name');
-      if (data) setCategories(data);
+      try {
+        const res = await fetch(`/api/categories?userId=${user!.uid}`);
+        if (res.ok) {
+          const data = await res.json();
+          setCategories(data.categories || []);
+        }
+      } catch (err) {
+        console.error('Error fetching categories:', err);
+      }
     }
     fetchCategories();
-  }, [user, isConfigured]);
+  }, [user]);
 
   // Load transactions
   const fetchTransactions = useCallback(async () => {
-    if (!user || !isConfigured) {
+    if (!user) {
       setLoading(false);
       return;
     }
 
     setLoading(true);
     try {
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from('transactions')
-        .select(`
-          *,
-          category:categories(*)
-        `)
-        .eq('user_id', user.id)
-        .order('date', { ascending: false })
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setTransactions((data as unknown as Transaction[]) || []);
+      const res = await fetch(`/api/transactions?userId=${user.uid}`);
+      if (!res.ok) throw new Error('Failed to load transactions');
+      const data = await res.json();
+      setTransactions(data.transactions || []);
     } catch (err) {
       console.error('Error fetching transactions:', err);
     } finally {
       setLoading(false);
     }
-  }, [user, isConfigured]);
+  }, [user]);
 
   useEffect(() => {
     fetchTransactions();
@@ -148,14 +140,11 @@ export default function TransactionsPage() {
     if (!transactionToDelete || !user) return;
     setDeleting(true);
     try {
-      const supabase = createClient();
-      const { error } = await supabase
-        .from('transactions')
-        .delete()
-        .eq('id', transactionToDelete.id)
-        .eq('user_id', user.id);
-
-      if (error) throw error;
+      const res = await fetch(
+        `/api/transactions?userId=${user.uid}&transactionId=${transactionToDelete.id}`,
+        { method: 'DELETE' }
+      );
+      if (!res.ok) throw new Error('Failed to delete transaction');
       setDeleteModalOpen(false);
       setTransactionToDelete(null);
       await fetchTransactions();
@@ -199,7 +188,7 @@ export default function TransactionsPage() {
   return (
     <DashboardLayout
       title="Transactions"
-      subtitle="Complete ledger of all your income and expenses"
+      subtitle="Complete ledger of all your income and expenses in MongoDB"
       onRefreshData={fetchTransactions}
     >
       <div className="space-y-6">

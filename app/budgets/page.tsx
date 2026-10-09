@@ -6,7 +6,6 @@ import { BudgetModal } from '@/components/budgets/BudgetModal';
 import { Modal } from '@/components/ui/Modal';
 import { CategoryIcon } from '@/components/ui/CategoryIcon';
 import { useAuth } from '@/components/providers/AuthProvider';
-import { createClient } from '@/lib/supabase/client';
 import { Budget, Category, BudgetWithProgress } from '@/types/database';
 import { formatCurrency, getCurrentMonth, formatMonthYear } from '@/lib/utils';
 import {
@@ -22,12 +21,13 @@ import {
 } from 'lucide-react';
 
 export default function BudgetsPage() {
-  const { user, profile, isConfigured } = useAuth();
+  const { user, profile } = useAuth();
   const [selectedMonth, setSelectedMonth] = useState<string>('2026-10');
   
   useEffect(() => {
     setSelectedMonth(getCurrentMonth());
   }, []);
+
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [spentMap, setSpentMap] = useState<Record<string, number>>({});
@@ -42,73 +42,42 @@ export default function BudgetsPage() {
 
   // Load categories
   useEffect(() => {
-    if (!user || !isConfigured) return;
+    if (!user) return;
     async function fetchCategories() {
-      const supabase = createClient();
-      const { data } = await supabase
-        .from('categories')
-        .select('*')
-        .eq('user_id', user!.id)
-        .order('name');
-      if (data) setCategories(data);
+      try {
+        const res = await fetch(`/api/categories?userId=${user!.uid}`);
+        if (res.ok) {
+          const data = await res.json();
+          setCategories(data.categories || []);
+        }
+      } catch (err) {
+        console.error('Error loading categories:', err);
+      }
     }
     fetchCategories();
-  }, [user, isConfigured]);
+  }, [user]);
 
-  // Load budgets & calculate spent amounts for selected month
+  // Load budgets & calculated spent amounts from MongoDB API
   const fetchBudgetData = useCallback(async () => {
-    if (!user || !isConfigured) {
+    if (!user) {
       setLoading(false);
       return;
     }
 
     setLoading(true);
     try {
-      const supabase = createClient();
+      const res = await fetch(`/api/budgets?userId=${user.uid}&month=${selectedMonth}`);
+      if (!res.ok) throw new Error('Failed to load budgets');
 
-      // 1. Fetch budgets for this month
-      const { data: budgetData, error: budgetError } = await supabase
-        .from('budgets')
-        .select(`
-          *,
-          category:categories(*)
-        `)
-        .eq('user_id', user.id)
-        .eq('month', selectedMonth);
-
-      if (budgetError) throw budgetError;
-      setBudgets((budgetData as unknown as Budget[]) || []);
-
-      // 2. Fetch expenses in this month to calculate spent amount per category
-      const [year, month] = selectedMonth.split('-');
-      const startDate = `${year}-${month}-01`;
-      const lastDay = new Date(Number(year), Number(month), 0).getDate();
-      const endDate = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
-
-      const { data: txData, error: txError } = await supabase
-        .from('transactions')
-        .select('category_id, amount')
-        .eq('user_id', user.id)
-        .eq('type', 'expense')
-        .gte('date', startDate)
-        .lte('date', endDate);
-
-      if (txError) throw txError;
-
-      const spentCounts: Record<string, number> = {};
-      (txData || []).forEach((tx) => {
-        if (tx.category_id) {
-          spentCounts[tx.category_id] = (spentCounts[tx.category_id] || 0) + Number(tx.amount);
-        }
-      });
-      setSpentMap(spentCounts);
-
+      const data = await res.json();
+      setBudgets(data.budgets || []);
+      setSpentMap(data.spentMap || {});
     } catch (err) {
       console.error('Error fetching budgets:', err);
     } finally {
       setLoading(false);
     }
-  }, [user, isConfigured, selectedMonth]);
+  }, [user, selectedMonth]);
 
   useEffect(() => {
     fetchBudgetData();
@@ -163,14 +132,11 @@ export default function BudgetsPage() {
     if (!budgetToDelete || !user) return;
     setDeleting(true);
     try {
-      const supabase = createClient();
-      const { error } = await supabase
-        .from('budgets')
-        .delete()
-        .eq('id', budgetToDelete.id)
-        .eq('user_id', user.id);
-
-      if (error) throw error;
+      const res = await fetch(
+        `/api/budgets?userId=${user.uid}&budgetId=${budgetToDelete.id}`,
+        { method: 'DELETE' }
+      );
+      if (!res.ok) throw new Error('Failed to delete budget');
       setDeleteModalOpen(false);
       setBudgetToDelete(null);
       await fetchBudgetData();
@@ -184,7 +150,7 @@ export default function BudgetsPage() {
   return (
     <DashboardLayout
       title="Monthly Budgets"
-      subtitle="Track your spending limits and control category expenditures"
+      subtitle="Track your spending limits and control category expenditures in MongoDB"
       onRefreshData={fetchBudgetData}
     >
       <div className="space-y-6">

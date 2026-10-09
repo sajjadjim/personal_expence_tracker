@@ -8,14 +8,13 @@ import { RecentTransactions } from '@/components/dashboard/RecentTransactions';
 import { TransactionFormModal } from '@/components/transactions/TransactionFormModal';
 import { StatCardSkeleton, ChartSkeleton } from '@/components/ui/Skeleton';
 import { useAuth } from '@/components/providers/AuthProvider';
-import { createClient } from '@/lib/supabase/client';
 import { Transaction, TransactionType } from '@/types/database';
 import { Filter } from 'lucide-react';
 
 type DateFilterOption = 'this_month' | 'last_month' | 'last_30_days' | 'this_year' | 'all';
 
 export default function DashboardPage() {
-  const { user, profile, isConfigured } = useAuth();
+  const { user, profile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [dateFilter, setDateFilter] = useState<DateFilterOption>('this_month');
 
@@ -59,37 +58,23 @@ export default function DashboardPage() {
   };
 
   const loadDashboardData = useCallback(async () => {
-    if (!user || !isConfigured) {
+    if (!user) {
       setLoading(false);
       return;
     }
 
     setLoading(true);
     try {
-      const supabase = createClient();
       const { start, end } = getDateRange(dateFilter);
+      const params = new URLSearchParams({ userId: user.uid });
+      if (start) params.append('startDate', start);
+      if (end) params.append('endDate', end);
 
-      let query = supabase
-        .from('transactions')
-        .select(`
-          *,
-          category:categories(*)
-        `)
-        .eq('user_id', user.id)
-        .order('date', { ascending: false });
+      const res = await fetch(`/api/transactions?${params.toString()}`);
+      if (!res.ok) throw new Error('Failed to fetch transactions');
 
-      if (start && end) {
-        query = query.gte('date', start).lte('date', end);
-      }
-
-      const { data, error } = await query;
-
-      if (error) {
-        console.error('Error fetching transactions:', error);
-        return;
-      }
-
-      const txList: Transaction[] = (data as unknown as Transaction[]) || [];
+      const data = await res.json();
+      const txList: Transaction[] = data.transactions || [];
       setTransactions(txList);
 
       // Calculate totals
@@ -128,7 +113,6 @@ export default function DashboardPage() {
       const monthMap = new Map<string, { income: number; expense: number }>();
       const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       
-      // Initialize past 6 months
       for (let i = 5; i >= 0; i--) {
         const d = new Date();
         d.setMonth(d.getMonth() - i);
@@ -136,20 +120,17 @@ export default function DashboardPage() {
         monthMap.set(key, { income: 0, expense: 0 });
       }
 
-      // Fetch broader set for the 6-month chart
+      // Fetch broader set for 6-month chart
       const sixMonthsAgo = new Date();
       sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
       sixMonthsAgo.setDate(1);
       const sixMonthsStr = sixMonthsAgo.toISOString().split('T')[0];
 
-      const { data: trendData } = await supabase
-        .from('transactions')
-        .select('amount, type, date')
-        .eq('user_id', user.id)
-        .gte('date', sixMonthsStr);
-
-      if (trendData) {
-        trendData.forEach((tx) => {
+      const trendRes = await fetch(`/api/transactions?userId=${user.uid}&startDate=${sixMonthsStr}`);
+      if (trendRes.ok) {
+        const trendData = await trendRes.json();
+        const trendList: Transaction[] = trendData.transactions || [];
+        trendList.forEach((tx) => {
           const txDate = new Date(tx.date);
           const key = `${months[txDate.getMonth()]} ${txDate.getFullYear().toString().slice(2)}`;
           if (monthMap.has(key)) {
@@ -175,7 +156,7 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [user, isConfigured, dateFilter]);
+  }, [user, dateFilter]);
 
   useEffect(() => {
     loadDashboardData();

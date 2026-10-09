@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/components/providers/AuthProvider';
-import { createClient } from '@/lib/supabase/client';
+import { changePassword } from '@/lib/firebase/auth';
 import { SUPPORTED_CURRENCIES } from '@/types/database';
 import { Alert } from '@/components/ui/Alert';
 import {
@@ -48,20 +48,24 @@ export default function SettingsPage() {
     setProfileError(null);
 
     try {
-      const supabase = createClient();
       const selectedCurrency = SUPPORTED_CURRENCIES.find((c) => c.code === currencyCode);
 
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          full_name: fullName.trim(),
-          currency_code: currencyCode,
-          currency_symbol: selectedCurrency?.symbol || '৳',
-          date_format: dateFormat,
-        })
-        .eq('id', user.id);
+      const res = await fetch('/api/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.uid,
+          fullName: fullName.trim(),
+          currencyCode,
+          currencySymbol: selectedCurrency?.symbol || '৳',
+          dateFormat,
+        }),
+      });
 
-      if (error) throw error;
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to update preferences');
+      }
 
       await refreshProfile();
       setProfileSuccess(true);
@@ -92,13 +96,7 @@ export default function SettingsPage() {
     setUpdatingPassword(true);
 
     try {
-      const supabase = createClient();
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword,
-      });
-
-      if (error) throw error;
-
+      await changePassword(newPassword);
       setPasswordSuccess(true);
       setNewPassword('');
       setConfirmPassword('');
@@ -114,7 +112,7 @@ export default function SettingsPage() {
   return (
     <DashboardLayout
       title="Preferences & Settings"
-      subtitle="Customize your currency, date formatting, and account security"
+      subtitle="Customize your currency, date formatting, and account security in MongoDB"
     >
       <div className="space-y-8 max-w-4xl">
         {/* Profile & Regional Settings */}
@@ -242,7 +240,7 @@ export default function SettingsPage() {
                 Security & Password
               </h3>
               <p className="text-xs text-slate-500">
-                Keep your financial account safe with a strong password
+                Keep your financial account safe with Firebase secure authentication
               </p>
             </div>
           </div>
