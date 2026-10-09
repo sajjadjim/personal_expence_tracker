@@ -1,12 +1,19 @@
-# 💰 ExpenseTrack — Production Personal Expense Tracker
+# 💰 ExpenseTrack — Personal Expense Tracker
 
-A modern, responsive, and secure personal finance and expense tracking web application built with **Next.js App Router**, **React**, **TypeScript**, **Tailwind CSS**, and **Supabase** (PostgreSQL + Auth + Row Level Security).
+A modern, responsive, and secure personal finance and expense tracking web application built with **Next.js App Router**, **React 19**, **TypeScript**, **Tailwind CSS**, **Firebase Authentication**, and **MongoDB Atlas** database (`expence_tracker_smart`).
 
-Designed with a clean, high-performance financial SaaS dashboard aesthetic inspired by modern enterprise web applications. Supports multi-currency preferences with **Bangladeshi Taka (৳ BDT)** as default.
+Designed with a clean, high-performance financial SaaS dashboard aesthetic. Supports multi-currency preferences with **Bangladeshi Taka (৳ BDT)** as default.
 
 ---
 
-## ✨ Features & Architecture
+## 🛠️ Integrated Tech Stack
+
+- **Authentication**: [Firebase Auth](https://firebase.google.com/) (`expence-managemnt-system`) — User sign-up, sign-in, session state, and password recovery.
+- **Primary Database**: [MongoDB Atlas](https://www.mongodb.com/atlas) (`expence_tracker_smart`) — Collections for `profiles`, `categories`, `transactions`, and `budgets`.
+- **Backend API**: Next.js App Router API Handlers (`/api/profile`, `/api/categories`, `/api/transactions`, `/api/budgets`).
+- **Frontend UI**: Next.js 16 + React 19 + TypeScript + Tailwind CSS v4.
+- **Visualizations**: [Recharts](https://recharts.org/) — Cashflow bar charts, category donut charts, savings trend area charts.
+- **Icons & Forms**: [Lucide React](https://lucide.dev/) + React Hook Form + Zod.
 
 ### 1. 🔐 Authentication & Session Security
 - User registration, login, logout, password reset, and recovery flows.
