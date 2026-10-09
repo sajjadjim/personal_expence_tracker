@@ -19,7 +19,7 @@ export async function getOrCreateProfile(
   fullName?: string
 ): Promise<MongoProfile> {
   const db = await getDatabase();
-  const collection = db.collection<MongoProfile>('profiles');
+  const collection = db.collection<MongoProfile>('user');
 
   let profile = await collection.findOne({ userId });
 
@@ -28,9 +28,17 @@ export async function getOrCreateProfile(
       userId,
       email,
       fullName: fullName || email.split('@')[0],
+      age: null,
+      currentIncome: 0,
+      address: '',
+      mobileNumber: '',
+      totalIncome: 0,
+      totalExpense: 0,
+      currentBalance: 0,
       currencyCode: 'BDT',
       currencySymbol: '৳',
       dateFormat: 'DD/MM/YYYY',
+      lastLoginAt: new Date(),
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -40,6 +48,13 @@ export async function getOrCreateProfile(
 
     // Automatically seed default categories for new profile
     await seedDefaultCategories(userId);
+  } else {
+    // Record login timestamp
+    await collection.updateOne(
+      { userId },
+      { $set: { lastLoginAt: new Date(), updatedAt: new Date() } }
+    );
+    profile.lastLoginAt = new Date();
   }
 
   return profile;
@@ -47,10 +62,10 @@ export async function getOrCreateProfile(
 
 export async function updateProfile(
   userId: string,
-  updates: Partial<Pick<MongoProfile, 'fullName' | 'currencyCode' | 'currencySymbol' | 'dateFormat'>>
+  updates: Partial<Pick<MongoProfile, 'fullName' | 'age' | 'currentIncome' | 'address' | 'mobileNumber' | 'currencyCode' | 'currencySymbol' | 'dateFormat'>>
 ): Promise<MongoProfile | null> {
   const db = await getDatabase();
-  const collection = db.collection<MongoProfile>('profiles');
+  const collection = db.collection<MongoProfile>('user');
 
   const result = await collection.findOneAndUpdate(
     { userId },
@@ -65,6 +80,42 @@ export async function updateProfile(
 
   return result;
 }
+
+export async function recalculateAndStoreUserExpenses(userId: string) {
+  const db = await getDatabase();
+  const txCollection = db.collection<MongoTransaction>('transactions');
+  const userCollection = db.collection<MongoProfile>('user');
+
+  const transactions = await txCollection.find({ userId }).toArray();
+  let totalIncome = 0;
+  let totalExpense = 0;
+
+  for (const tx of transactions) {
+    const amt = Number(tx.amount) || 0;
+    if (tx.type === 'income') {
+      totalIncome += amt;
+    } else {
+      totalExpense += amt;
+    }
+  }
+
+  const currentBalance = totalIncome - totalExpense;
+
+  await userCollection.updateOne(
+    { userId },
+    {
+      $set: {
+        totalIncome,
+        totalExpense,
+        currentBalance,
+        updatedAt: new Date(),
+      },
+    }
+  );
+
+  return { totalIncome, totalExpense, currentBalance };
+}
+
 
 // ------------------------------------------------------------------------------
 // CATEGORIES REPOSITORY
@@ -266,6 +317,8 @@ export async function createTransaction(
   };
 
   const result = await collection.insertOne(newTx);
+  // Recalculate user expense totals and save into 'user' collection
+  await recalculateAndStoreUserExpenses(userId);
   return { ...newTx, id: result.insertedId.toString() };
 }
 
@@ -288,6 +341,8 @@ export async function updateTransaction(
     { returnDocument: 'after' }
   );
 
+  // Recalculate user expense totals and save into 'user' collection
+  await recalculateAndStoreUserExpenses(userId);
   return result;
 }
 
@@ -300,6 +355,8 @@ export async function deleteTransaction(userId: string, transactionId: string) {
     userId,
   });
 
+  // Recalculate user expense totals and save into 'user' collection
+  await recalculateAndStoreUserExpenses(userId);
   return result.deletedCount > 0;
 }
 

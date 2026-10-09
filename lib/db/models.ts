@@ -6,9 +6,17 @@ export interface MongoProfile {
   userId: string;
   email: string;
   fullName: string;
+  age?: number | null;
+  currentIncome?: number | null;
+  address?: string | null;
+  mobileNumber?: string | null;
+  totalIncome?: number;
+  totalExpense?: number;
+  currentBalance?: number;
   currencyCode: string;
   currencySymbol: string;
   dateFormat: string;
+  lastLoginAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }

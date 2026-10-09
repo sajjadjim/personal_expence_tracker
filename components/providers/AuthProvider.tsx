@@ -43,6 +43,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             email: data.profile.email,
             full_name: data.profile.fullName,
             avatar_url: null,
+            age: data.profile.age ?? null,
+            current_income: data.profile.currentIncome ?? null,
+            address: data.profile.address ?? '',
+            mobile_number: data.profile.mobileNumber ?? '',
+            total_income: data.profile.totalIncome ?? 0,
+            total_expense: data.profile.totalExpense ?? 0,
+            current_balance: data.profile.currentBalance ?? 0,
             currency_code: data.profile.currencyCode || 'BDT',
             currency_symbol: data.profile.currencySymbol || '৳',
             date_format: data.profile.dateFormat || 'DD/MM/YYYY',
@@ -60,10 +67,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
       if (firebaseUser) {
+        const userEmail = firebaseUser.email || (firebaseUser.phoneNumber ? `${firebaseUser.phoneNumber.replace(/[^0-9]/g, '')}@phone.local` : 'user@example.com');
+        const userDisplayName = firebaseUser.displayName || firebaseUser.phoneNumber || 'User';
         await fetchProfile(
           firebaseUser.uid,
-          firebaseUser.email,
-          firebaseUser.displayName
+          userEmail,
+          userDisplayName
         );
       } else {
         setProfile(null);

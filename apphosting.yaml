@@ -1,0 +1,26 @@
+# Settings for Firebase App Hosting
+# Docs: https://firebase.google.com/docs/app-hosting/configure
+runConfig:
+  minInstances: 0
+  maxInstances: 5
+  concurrency: 80
+  cpu: 1
+  memoryMiB: 512
+
+env:
+  - variable: MONGODB_URI
+    value: "mongodb+srv://clientUser:eC03qWMMsdFkuNqN@sajjadjim15.ac97xgz.mongodb.net/?appName=SajjadJim15"
+  - variable: MONGODB_DB
+    value: "expence_tracker_smart"
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    value: "AIzaSyDOuG_E0M2O4e-55OzE5KgB0MpWE0US12U"
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: "expence-managemnt-system.firebaseapp.com"
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: "expence-managemnt-system"
+  - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    value: "expence-managemnt-system.firebasestorage.app"
+  - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    value: "1095883448413"
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    value: "1:1095883448413:web:576fb16ce6dd543e802db4"

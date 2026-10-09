@@ -5,9 +5,19 @@ import {
   sendPasswordResetEmail,
   updatePassword,
   updateProfile,
+  signInWithPopup,
+  signInAnonymously,
+  GoogleAuthProvider,
+  RecaptchaVerifier,
+  signInWithPhoneNumber,
+  ConfirmationResult,
   User,
 } from 'firebase/auth';
 import { auth } from './config';
+
+export type { ConfirmationResult, RecaptchaVerifier };
+
+const googleProvider = new GoogleAuthProvider();
 
 export async function signUpWithEmail(
   email: string,
@@ -28,6 +38,43 @@ export async function signInWithEmail(email: string, password: string): Promise<
   return userCredential.user;
 }
 
+export async function signInWithGoogle(): Promise<User> {
+  const result = await signInWithPopup(auth, googleProvider);
+  return result.user;
+}
+
+export async function signInAsGuest(): Promise<User> {
+  const result = await signInAnonymously(auth);
+  return result.user;
+}
+
+export function createRecaptcha(containerId: string): RecaptchaVerifier {
+  return new RecaptchaVerifier(auth, containerId, {
+    size: 'invisible',
+    callback: () => {
+      // reCAPTCHA solved
+    },
+    'expired-callback': () => {
+      // reCAPTCHA expired
+    },
+  });
+}
+
+export async function sendPhoneOtp(
+  phoneNumber: string,
+  verifier: RecaptchaVerifier
+): Promise<ConfirmationResult> {
+  return await signInWithPhoneNumber(auth, phoneNumber, verifier);
+}
+
+export async function verifyPhoneOtp(
+  confirmationResult: ConfirmationResult,
+  otpCode: string
+): Promise<User> {
+  const result = await confirmationResult.confirm(otpCode);
+  return result.user;
+}
+
 export async function signOutUser(): Promise<void> {
   await signOut(auth);
 }
@@ -42,3 +89,4 @@ export async function changePassword(newPassword: string): Promise<void> {
   }
   await updatePassword(auth.currentUser, newPassword);
 }
+
